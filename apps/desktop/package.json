@@ -1,0 +1,26 @@
+{
+  "name": "screencare-desktop",
+  "version": "1.0.0",
+  "description": "ScreenCare - Secure Screen Health & Wellness Desktop Application",
+  "main": "dist-electron/main/index.js",
+  "scripts": {
+    "dev": "vite",
+    "build:vite": "vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build": "npm run build:vite && npm run build:electron",
+    "package:win": "npm run build && electron-builder --win --x64"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "electron": "^30.0.9",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11"
+  }
+}

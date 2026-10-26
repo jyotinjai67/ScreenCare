@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+package-lock.json.tmp
+
+# Local tools & SDKs (downloaded commandline-tools & gradle)
+tools/
+.temp/
+
+# Build artifacts & caches
+dist/
+dist-electron/
+dist-test/
+.vite/
+*.tmp
+*.log
+
+# Windows unpacked packaging cache & large binaries (>50MB)
+release/windows/win-unpacked/
+release/windows/builder-debug.yml
+release/windows/*.blockmap
+release/windows/*.exe
+
+# Android build outputs & machine-specific configs
+apps/android/.gradle/
+apps/android/build/
+apps/android/app/build/
+apps/android/local.properties
+.gradle/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE configs
+.idea/
+.vscode/
+*.iml

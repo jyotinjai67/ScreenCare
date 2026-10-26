@@ -1,0 +1,22 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0d9488" />
+    </linearGradient>
+    <linearGradient id="eyeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#2dd4bf" />
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="#0f172a" />
+  <path d="M128 32 C176 48 208 56 208 104 C208 168 156 208 128 224 C100 208 48 168 48 104 C48 56 80 48 128 32 Z" fill="url(#shieldGrad)" />
+  <!-- Eye shape -->
+  <path d="M72 128 C88 96 112 84 128 84 C144 84 168 96 184 128 C168 160 144 172 128 172 C112 172 88 160 72 128 Z" fill="#ffffff" />
+  <!-- Pupil -->
+  <circle cx="128" cy="128" r="28" fill="url(#eyeGrad)" />
+  <circle cx="128" cy="128" r="14" fill="#0f172a" />
+  <circle cx="134" cy="122" r="5" fill="#ffffff" />
+  <!-- Sprout / leaf above indicating wellness -->
+  <path d="M128 50 C128 50 148 40 156 60 C140 64 132 56 128 50 Z" fill="#4ade80" />
+</svg>

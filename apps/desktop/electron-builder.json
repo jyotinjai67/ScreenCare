@@ -1,0 +1,34 @@
+{
+  "appId": "com.screencare.desktop",
+  "productName": "ScreenCare",
+  "directories": {
+    "output": "../../release/windows"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "package.json"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "requestedExecutionLevel": "asInvoker"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "artifactName": "ScreenCare-Setup.exe",
+    "deleteAppDataOnUninstall": true
+  },
+  "portable": {
+    "artifactName": "ScreenCare.exe"
+  }
+}
