@@ -1,5 +1,22 @@
 ﻿export type ReminderType = 'eye-break' | 'posture-stretch' | 'stand-move' | 'walking' | 'viewing-distance';
 
+export type ReminderCycleStatus =
+  | 'scheduled'
+  | 'notified'
+  | 'in-progress'
+  | 'completed'
+  | 'skipped'
+  | 'snoozed';
+
+export interface ReminderCycleInfo {
+  cycleId: string;
+  type: ReminderType;
+  scheduledTime: number;
+  status: ReminderCycleStatus;
+  notifiedAt?: number;
+  completedAt?: number;
+}
+
 export interface ReminderConfig {
   enabled: boolean;
   intervalMinutes: number;
@@ -67,6 +84,7 @@ export interface ActiveBreakState {
   remainingSeconds: number;
   totalSeconds: number;
   status: 'active' | 'paused' | 'completed' | 'snoozed' | 'skipped';
+  cycleId?: string;
 }
 
 export interface AppStateSnapshot {
@@ -83,6 +101,8 @@ export interface AppStateSnapshot {
     type: ReminderType;
     nextDueTimestamp: number;
     secondsRemaining: number;
+    status: ReminderCycleStatus;
+    cycleId: string;
   }[];
 }
 

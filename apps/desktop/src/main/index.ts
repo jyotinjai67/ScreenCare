@@ -1,4 +1,4 @@
-import {
+﻿import {
   app,
   BrowserWindow,
   ipcMain,
@@ -17,6 +17,7 @@ import {
   AppStateSnapshot,
   ReminderType,
   BreakLogEntry,
+  ReminderCycleInfo,
 } from '../shared/types';
 
 let mainWindow: BrowserWindow | null = null;
@@ -32,6 +33,7 @@ interface StoredData {
   settings: UserSettings;
   activeScreenSeconds: number;
   breakLogs: BreakLogEntry[];
+  cycles?: Record<ReminderType, ReminderCycleInfo>;
 }
 
 function loadStoredData(): StoredData {
@@ -43,6 +45,7 @@ function loadStoredData(): StoredData {
         settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) },
         activeScreenSeconds: Number(parsed.activeScreenSeconds) || 0,
         breakLogs: Array.isArray(parsed.breakLogs) ? parsed.breakLogs : [],
+        cycles: parsed.cycles || undefined,
       };
     }
   } catch (err) {
@@ -61,6 +64,7 @@ function saveStoredData(): void {
       settings: engine.getSettings(),
       activeScreenSeconds: engine.getStatus().activeScreenSeconds,
       breakLogs: engine.getBreakLogs().slice(-200),
+      cycles: engine.getCycleInfo(),
     };
     const tempPath = `${dataFilePath}.tmp`;
     fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8');
@@ -86,15 +90,23 @@ function getAppSnapshot(): AppStateSnapshot {
   };
 }
 
+function focusMainWindow(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+}
+
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
-    width: 1040,
-    height: 720,
-    minWidth: 850,
-    minHeight: 600,
+    width: 1100,
+    height: 760,
+    minWidth: 880,
+    minHeight: 640,
     title: 'ScreenCare',
     show: false,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#0b0f19',
     frame: true,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
@@ -142,11 +154,16 @@ function showNotificationForEvent(event: ReminderDueEvent): void {
   });
 
   notif.on('click', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-      mainWindow.webContents.send('screencare:reminder-triggered', event);
+    focusMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      // Transition break to in-progress and deep-link directly to break screen
+      engine.startBreak(event.type);
+      mainWindow.webContents.send('screencare:open-break-screen', {
+        type: event.type,
+        cycleId: event.cycleId,
+        exercise: event.exercise,
+      });
+      broadcastState();
     }
   });
 
@@ -185,31 +202,26 @@ function setupTray(): void {
       {
         label: 'Open ScreenCare Dashboard',
         click: () => {
-          if (mainWindow) {
-            mainWindow.show();
-            mainWindow.focus();
-          }
+          focusMainWindow();
         },
       },
       { type: 'separator' },
       {
-        label: 'Take 20-20-20 Break Now',
+        label: 'Take 20-20-20 Eye Break Now',
         click: () => {
+          focusMainWindow();
           engine.startBreak('eye-break');
-          if (mainWindow) {
-            mainWindow.show();
-            mainWindow.focus();
-          }
+          mainWindow?.webContents.send('screencare:open-break-screen', { type: 'eye-break' });
+          broadcastState();
         },
       },
       {
         label: 'Posture & Shoulder Stretch',
         click: () => {
+          focusMainWindow();
           engine.startBreak('posture-stretch');
-          if (mainWindow) {
-            mainWindow.show();
-            mainWindow.focus();
-          }
+          mainWindow?.webContents.send('screencare:open-break-screen', { type: 'posture-stretch' });
+          broadcastState();
         },
       },
       { type: 'separator' },
@@ -238,10 +250,7 @@ function setupTray(): void {
 
   updateTrayMenu();
   tray.on('double-click', () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
+    focusMainWindow();
   });
 }
 
@@ -256,18 +265,18 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    }
+    focusMainWindow();
   });
 
   app.whenReady().then(() => {
     const initialData = loadStoredData();
     engine = new ReminderEngine(initialData.settings, initialData.activeScreenSeconds);
     engine.setBreakLogs(initialData.breakLogs);
+    if (initialData.cycles) {
+      engine.setCycleInfo(initialData.cycles);
+    }
 
+    // Single authoritative handler: fires exactly ONCE per reminder cycle
     engine.setOnReminderDue((event) => {
       showNotificationForEvent(event);
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -280,10 +289,9 @@ if (!gotLock) {
 
     timerInterval = setInterval(() => {
       const idleSec = powerMonitor.getSystemIdleTime();
-      const event = engine.tick(idleSec, Date.now());
-      if (event) {
-        showNotificationForEvent(event);
-      }
+      // Tick scheduler: engine.tick() handles deduplication and triggers onReminderDue
+      // Do NOT call showNotificationForEvent here to prevent duplicate notifications!
+      engine.tick(idleSec, Date.now());
       broadcastState();
     }, 1000);
 
@@ -291,16 +299,21 @@ if (!gotLock) {
 
     powerMonitor.on('lock-screen', () => {
       engine.pause();
+      broadcastState();
     });
     powerMonitor.on('unlock-screen', () => {
       engine.resume();
+      broadcastState();
     });
     powerMonitor.on('suspend', () => {
       engine.pause();
       saveStoredData();
+      broadcastState();
     });
     powerMonitor.on('resume', () => {
       engine.resume();
+      engine.handleWakeOrResume(Date.now());
+      broadcastState();
     });
 
     try {

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+﻿import { contextBridge, ipcRenderer } from 'electron';
 import { ReminderType, UserSettings, AppStateSnapshot } from '../shared/types';
 
 export const screenCareApi = {
@@ -28,6 +28,13 @@ export const screenCareApi = {
     ipcRenderer.on('screencare:reminder-triggered', handler);
     return () => {
       ipcRenderer.removeListener('screencare:reminder-triggered', handler);
+    };
+  },
+  onOpenBreakScreen: (callback: (data: any) => void) => {
+    const handler = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('screencare:open-break-screen', handler);
+    return () => {
+      ipcRenderer.removeListener('screencare:open-break-screen', handler);
     };
   },
 };

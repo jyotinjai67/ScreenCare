@@ -1,14 +1,16 @@
 ﻿import {
   ReminderType,
   UserSettings,
-  QuietHoursConfig,
   BreakLogEntry,
   ActiveBreakState,
   DailyWellnessSummary,
+  ReminderCycleInfo,
+  ReminderCycleStatus,
 } from './types';
 import { getExerciseForReminder } from './stretches';
 
 export interface ReminderDueEvent {
+  cycleId: string;
   type: ReminderType;
   title: string;
   message: string;
@@ -25,14 +27,7 @@ export class ReminderEngine {
   private isPaused = false;
   private pauseUntil = 0;
 
-  private nextDueTimestamps: Record<ReminderType, number> = {
-    'eye-break': 0,
-    'posture-stretch': 0,
-    'stand-move': 0,
-    'walking': 0,
-    'viewing-distance': 0,
-  };
-
+  private cycles: Record<ReminderType, ReminderCycleInfo>;
   private activeBreak: ActiveBreakState | null = null;
   private breakLogs: BreakLogEntry[] = [];
   private onReminderDueCallback?: (event: ReminderDueEvent) => void;
@@ -41,7 +36,7 @@ export class ReminderEngine {
     this.settings = { ...settings };
     this.activeScreenSeconds = initialScreenSeconds;
     this.currentContinuousSeconds = initialScreenSeconds;
-    this.recalculateAllNextDue(initialTimestamp);
+    this.cycles = this.initializeCycles(initialTimestamp);
   }
 
   public setOnReminderDue(callback: (event: ReminderDueEvent) => void): void {
@@ -50,11 +45,31 @@ export class ReminderEngine {
 
   public updateSettings(newSettings: UserSettings, now = Date.now()): void {
     this.settings = { ...newSettings };
-    this.recalculateAllNextDue(now);
+    // Reschedule any currently 'scheduled' reminders with the new intervals
+    const types: ReminderType[] = ['eye-break', 'posture-stretch', 'stand-move', 'walking', 'viewing-distance'];
+    for (const t of types) {
+      if (this.cycles[t].status === 'scheduled') {
+        this.scheduleNext(t, now);
+      }
+    }
   }
 
   public getSettings(): UserSettings {
     return { ...this.settings };
+  }
+
+  public getCycleInfo(): Record<ReminderType, ReminderCycleInfo> {
+    return JSON.parse(JSON.stringify(this.cycles));
+  }
+
+  public setCycleInfo(cycles: Partial<Record<ReminderType, ReminderCycleInfo>>, now = Date.now()): void {
+    for (const [key, cycle] of Object.entries(cycles)) {
+      if (cycle && this.cycles[key as ReminderType]) {
+        this.cycles[key as ReminderType] = { ...cycle };
+      }
+    }
+    // Perform sleep/wake audit on imported cycles
+    this.handleWakeOrResume(now);
   }
 
   public tick(systemIdleSeconds: number, now = Date.now()): ReminderDueEvent | null {
@@ -80,6 +95,7 @@ export class ReminderEngine {
     this.activeScreenSeconds += 1;
     this.currentContinuousSeconds += 1;
 
+    // If a break is currently active, decrement its remaining seconds
     if (this.activeBreak && this.activeBreak.status === 'active') {
       if (this.activeBreak.remainingSeconds > 0) {
         this.activeBreak.remainingSeconds -= 1;
@@ -94,16 +110,31 @@ export class ReminderEngine {
       return null;
     }
 
+    // Check overdue reminders by priority: walking > stand-move > posture-stretch > eye-break
     const types: ReminderType[] = ['walking', 'stand-move', 'posture-stretch', 'eye-break'];
 
     for (const type of types) {
       const config = this.getReminderConfig(type);
       if (!config.enabled) continue;
 
-      const nextDue = this.nextDueTimestamps[type];
-      if (nextDue > 0 && now >= nextDue) {
-        const event = this.triggerReminder(type, now);
+      const cycle = this.cycles[type];
+
+      // CRITICAL DEDUPLICATION: Only trigger if status is 'scheduled'
+      // If already 'notified' or 'in-progress', it will NOT trigger again during this cycle
+      if (cycle.status === 'scheduled' && now >= cycle.scheduledTime) {
+        // Atomically mark cycle as notified
+        cycle.status = 'notified';
+        cycle.notifiedAt = now;
+
+        const event = this.buildReminderEvent(type, cycle.cycleId, now);
+
+        // Burst suppression: prevent sudden multiple notifications if multiple overdue
         this.deferOtherReminders(type, now + 180000);
+
+        if (this.onReminderDueCallback) {
+          this.onReminderDueCallback(event);
+        }
+
         return event;
       }
     }
@@ -112,40 +143,15 @@ export class ReminderEngine {
   }
 
   public triggerReminder(type: ReminderType, now = Date.now()): ReminderDueEvent {
-    const exercise = getExerciseForReminder(type);
-    let title = 'ScreenCare Reminder';
-    let message = 'Time to take care of your body and vision.';
-
-    switch (type) {
-      case 'eye-break':
-        title = '20-20-20 Eye Break';
-        message = 'Look at something 20 feet (6m) away for 20 seconds to relax your eyes.';
-        break;
-      case 'posture-stretch':
-        title = 'Posture & Stretch Check';
-        message = 'Roll your shoulders, align your spine, and relieve neck tension.';
-        break;
-      case 'stand-move':
-        title = 'Stand Up & Move';
-        message = 'You have been seated for an hour. Stand up and stretch your legs.';
-        break;
-      case 'walking':
-        title = 'Walking Refresh Break';
-        message = 'Step away from your workstation for a 2-3 minute refreshing walk.';
-        break;
-      case 'viewing-distance':
-        title = 'Viewing Distance Check';
-        message = 'Sit back comfortably and maintain arm-length distance from the screen.';
-        break;
+    let cycle = this.cycles[type];
+    if (cycle.status !== 'scheduled') {
+      cycle.cycleId = `${type}-${now}`;
     }
+    cycle.status = 'notified';
+    cycle.notifiedAt = now;
 
-    const event: ReminderDueEvent = {
-      type,
-      title,
-      message,
-      exercise,
-      dueTimestamp: now,
-    };
+    const event = this.buildReminderEvent(type, cycle.cycleId, now);
+    this.deferOtherReminders(type, now + 180000);
 
     if (this.onReminderDueCallback) {
       this.onReminderDueCallback(event);
@@ -154,10 +160,13 @@ export class ReminderEngine {
     return event;
   }
 
-  public startBreak(type: ReminderType): ActiveBreakState {
+  public startBreak(type: ReminderType, now = Date.now()): ActiveBreakState {
     const exercise = getExerciseForReminder(type);
     const config = this.getReminderConfig(type);
     const duration = this.settings.devTestMode ? Math.min(10, config.durationSeconds) : config.durationSeconds;
+
+    const cycle = this.cycles[type];
+    cycle.status = 'in-progress';
 
     this.activeBreak = {
       type,
@@ -165,6 +174,7 @@ export class ReminderEngine {
       totalSeconds: duration,
       remainingSeconds: duration,
       status: 'active',
+      cycleId: cycle.cycleId,
     };
 
     return this.activeBreak;
@@ -173,9 +183,13 @@ export class ReminderEngine {
   public completeBreak(type: ReminderType, actualDurationSeconds?: number, now = Date.now()): void {
     const config = this.getReminderConfig(type);
     const duration = actualDurationSeconds ?? config.durationSeconds;
+    const cycle = this.cycles[type];
+
+    cycle.status = 'completed';
+    cycle.completedAt = now;
 
     this.breakLogs.push({
-      id: `${now}-${type}`,
+      id: `${cycle.cycleId}-comp-${now}`,
       type,
       timestamp: now,
       action: 'completed',
@@ -184,19 +198,22 @@ export class ReminderEngine {
 
     if (this.activeBreak && this.activeBreak.type === type) {
       this.activeBreak.status = 'completed';
+      this.activeBreak = null;
     }
 
+    // Schedule next legitimate cycle
     this.scheduleNext(type, now);
   }
 
   public snoozeBreak(type: ReminderType, now = Date.now()): void {
     const config = this.getReminderConfig(type);
     const snoozeMs = (this.settings.devTestMode ? 0.25 : config.snoozeMinutes) * 60 * 1000;
+    const cycle = this.cycles[type];
 
-    this.nextDueTimestamps[type] = now + snoozeMs;
+    cycle.status = 'snoozed';
 
     this.breakLogs.push({
-      id: `${now}-${type}`,
+      id: `${cycle.cycleId}-snooze-${now}`,
       type,
       timestamp: now,
       action: 'snoozed',
@@ -207,11 +224,23 @@ export class ReminderEngine {
       this.activeBreak.status = 'snoozed';
       this.activeBreak = null;
     }
+
+    // Reschedule snooze cycle
+    const nextTime = now + snoozeMs;
+    this.cycles[type] = {
+      cycleId: `${type}-${nextTime}`,
+      type,
+      scheduledTime: nextTime,
+      status: 'scheduled',
+    };
   }
 
   public skipBreak(type: ReminderType, now = Date.now()): void {
+    const cycle = this.cycles[type];
+    cycle.status = 'skipped';
+
     this.breakLogs.push({
-      id: `${now}-${type}`,
+      id: `${cycle.cycleId}-skip-${now}`,
       type,
       timestamp: now,
       action: 'skipped',
@@ -223,6 +252,7 @@ export class ReminderEngine {
       this.activeBreak = null;
     }
 
+    // Schedule next legitimate cycle
     this.scheduleNext(type, now);
   }
 
@@ -238,7 +268,33 @@ export class ReminderEngine {
   public resume(now = Date.now()): void {
     this.isPaused = false;
     this.pauseUntil = 0;
-    this.recalculateAllNextDue(now);
+    this.handleWakeOrResume(now);
+  }
+
+  public handleWakeOrResume(now = Date.now()): void {
+    // Audit overdue reminders to prevent sudden burst of notifications upon wake/resume
+    const overdueTypes: ReminderType[] = [];
+    const types: ReminderType[] = ['eye-break', 'posture-stretch', 'stand-move', 'walking'];
+
+    for (const t of types) {
+      const cycle = this.cycles[t];
+      if (cycle.status === 'scheduled' && cycle.scheduledTime <= now) {
+        overdueTypes.push(t);
+      }
+    }
+
+    if (overdueTypes.length > 1) {
+      // Keep only the single most immediate reminder due right now
+      // Defer remaining reminders smoothly
+      const [first, ...rest] = overdueTypes;
+      this.cycles[first].scheduledTime = now;
+
+      rest.forEach((t, index) => {
+        const staggeredDelay = (index + 1) * 300000; // 5m, 10m, 15m
+        this.cycles[t].scheduledTime = now + staggeredDelay;
+        this.cycles[t].cycleId = `${t}-${this.cycles[t].scheduledTime}`;
+      });
+    }
   }
 
   public isQuietHours(nowTimestamp = Date.now()): boolean {
@@ -247,7 +303,6 @@ export class ReminderEngine {
 
     const date = new Date(nowTimestamp);
     const currentMins = date.getHours() * 60 + date.getMinutes();
-
     const [startH, startM] = q.start.split(':').map(Number);
     const [endH, endM] = q.end.split(':').map(Number);
     const startMins = startH * 60 + startM;
@@ -260,23 +315,39 @@ export class ReminderEngine {
     }
   }
 
-  public getNextReminders(now = Date.now()): { type: ReminderType; nextDueTimestamp: number; secondsRemaining: number }[] {
-    const list: { type: ReminderType; nextDueTimestamp: number; secondsRemaining: number }[] = [];
-    for (const [key, due] of Object.entries(this.nextDueTimestamps)) {
+  public getNextReminders(now = Date.now()): {
+    type: ReminderType;
+    nextDueTimestamp: number;
+    secondsRemaining: number;
+    status: ReminderCycleStatus;
+    cycleId: string;
+  }[] {
+    const list: {
+      type: ReminderType;
+      nextDueTimestamp: number;
+      secondsRemaining: number;
+      status: ReminderCycleStatus;
+      cycleId: string;
+    }[] = [];
+
+    for (const [key, cycle] of Object.entries(this.cycles)) {
       const type = key as ReminderType;
       const config = this.getReminderConfig(type);
-      if (config.enabled && due > 0) {
+      if (config.enabled && cycle.scheduledTime > 0) {
         list.push({
           type,
-          nextDueTimestamp: due,
-          secondsRemaining: Math.max(0, Math.round((due - now) / 1000)),
+          nextDueTimestamp: cycle.scheduledTime,
+          secondsRemaining: Math.max(0, Math.round((cycle.scheduledTime - now) / 1000)),
+          status: cycle.status,
+          cycleId: cycle.cycleId,
         });
       }
     }
     return list.sort((a, b) => a.secondsRemaining - b.secondsRemaining);
   }
 
-  public getDailySummary(dateString = new Date().toISOString().split('T')[0]): DailyWellnessSummary {
+  public getDailySummary(dateString?: string, nowTimestamp = Date.now()): DailyWellnessSummary {
+    const targetDate = dateString || new Date(nowTimestamp).toISOString().split('T')[0];
     let eyeCompleted = 0;
     let moveCompleted = 0;
     let skipped = 0;
@@ -284,7 +355,7 @@ export class ReminderEngine {
 
     for (const log of this.breakLogs) {
       const logDate = new Date(log.timestamp).toISOString().split('T')[0];
-      if (logDate !== dateString) continue;
+      if (logDate !== targetDate) continue;
 
       if (log.action === 'completed') {
         if (log.type === 'eye-break') eyeCompleted += 1;
@@ -305,7 +376,7 @@ export class ReminderEngine {
     const wellnessScore = Math.max(10, Math.min(100, Math.round(50 + completionRate * 35 + 15 - screenPenalty)));
 
     return {
-      date: dateString,
+      date: targetDate,
       totalScreenSeconds: this.activeScreenSeconds,
       totalIdleSeconds: this.idleSeconds,
       eyeBreaksCompleted: eyeCompleted,
@@ -339,6 +410,44 @@ export class ReminderEngine {
     };
   }
 
+  private buildReminderEvent(type: ReminderType, cycleId: string, now: number): ReminderDueEvent {
+    const exercise = getExerciseForReminder(type);
+    let title = 'ScreenCare Reminder';
+    let message = 'Time to take care of your body and vision.';
+
+    switch (type) {
+      case 'eye-break':
+        title = 'Time to rest your eyes 👁️ (20-20-20 Rule)';
+        message = 'Look at something in the distance (20 feet) for 20 seconds.';
+        break;
+      case 'posture-stretch':
+        title = 'Posture & Spine Check 🧘';
+        message = 'Roll your shoulders back, align your neck, and relieve upper body tension.';
+        break;
+      case 'stand-move':
+        title = 'Stand Up & Move 🚶';
+        message = 'You have been seated for a full session. Stand up and stretch your body.';
+        break;
+      case 'walking':
+        title = 'Walking Refresh Break 🌿';
+        message = 'Step away from your workstation for a refreshing 2-3 minute walk.';
+        break;
+      case 'viewing-distance':
+        title = 'Viewing Distance Check 📐';
+        message = 'Sit back comfortably and maintain arm-length distance from the screen.';
+        break;
+    }
+
+    return {
+      cycleId,
+      type,
+      title,
+      message,
+      exercise,
+      dueTimestamp: now,
+    };
+  }
+
   private getReminderConfig(type: ReminderType) {
     switch (type) {
       case 'eye-break':
@@ -363,7 +472,12 @@ export class ReminderEngine {
   private scheduleNext(type: ReminderType, fromTimestamp: number): void {
     const config = this.getReminderConfig(type);
     if (!config.enabled) {
-      this.nextDueTimestamps[type] = 0;
+      this.cycles[type] = {
+        cycleId: `${type}-disabled`,
+        type,
+        scheduledTime: 0,
+        status: 'completed',
+      };
       return;
     }
 
@@ -371,21 +485,40 @@ export class ReminderEngine {
       ? (type === 'eye-break' ? 20 : type === 'posture-stretch' ? 40 : type === 'stand-move' ? 60 : 90) * 1000
       : config.intervalMinutes * 60 * 1000;
 
-    this.nextDueTimestamps[type] = fromTimestamp + intervalMs;
+    const scheduledTime = fromTimestamp + intervalMs;
+    this.cycles[type] = {
+      cycleId: `${type}-${scheduledTime}`,
+      type,
+      scheduledTime,
+      status: 'scheduled',
+    };
   }
 
-  private recalculateAllNextDue(now: number): void {
+  private initializeCycles(initialTimestamp: number): Record<ReminderType, ReminderCycleInfo> {
     const types: ReminderType[] = ['eye-break', 'posture-stretch', 'stand-move', 'walking', 'viewing-distance'];
+    const res = {} as Record<ReminderType, ReminderCycleInfo>;
     for (const t of types) {
-      this.scheduleNext(t, now);
+      const config = this.getReminderConfig(t);
+      const intervalMs = this.settings.devTestMode
+        ? (t === 'eye-break' ? 20 : t === 'posture-stretch' ? 40 : t === 'stand-move' ? 60 : 90) * 1000
+        : config.intervalMinutes * 60 * 1000;
+      const scheduledTime = initialTimestamp + intervalMs;
+      res[t] = {
+        cycleId: `${t}-${scheduledTime}`,
+        type: t,
+        scheduledTime,
+        status: 'scheduled',
+      };
     }
+    return res;
   }
 
   private deferOtherReminders(triggeredType: ReminderType, deferUntil: number): void {
-    for (const [key, due] of Object.entries(this.nextDueTimestamps)) {
+    for (const [key, cycle] of Object.entries(this.cycles)) {
       const type = key as ReminderType;
-      if (type !== triggeredType && due < deferUntil && due > 0) {
-        this.nextDueTimestamps[type] = deferUntil;
+      if (type !== triggeredType && cycle.status === 'scheduled' && cycle.scheduledTime < deferUntil && cycle.scheduledTime > 0) {
+        cycle.scheduledTime = deferUntil;
+        cycle.cycleId = `${type}-${deferUntil}`;
       }
     }
   }

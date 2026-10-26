@@ -7,6 +7,7 @@ export default defineConfig({
   base: './',
   root: '.',
   resolve: {
+    extensions: ['.ts', '.tsx', '.mjs', '.js', '.jsx', '.json'],
     alias: {
       '@shared': path.resolve(__dirname, '../../shared'),
       '@': path.resolve(__dirname, './src/renderer'),

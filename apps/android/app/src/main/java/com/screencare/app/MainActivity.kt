@@ -1,4 +1,4 @@
-package com.screencare.app
+﻿package com.screencare.app
 
 import android.Manifest
 import android.app.AlertDialog
@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
-import android.provider.Settings
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -50,8 +49,24 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, DistanceEstimatorActivity::class.java))
         }
 
+        // Handle break launch from notification
+        handleIncomingBreakIntent(intent)
+
         // Schedule periodic 20-minute reminders
         ReminderReceiver.scheduleNextReminder(this, 20 * 60 * 1000L, "eye-break")
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingBreakIntent(intent)
+    }
+
+    private fun handleIncomingBreakIntent(intent: Intent?) {
+        val breakType = intent?.getStringExtra("EXTRA_START_BREAK")
+        if (breakType != null) {
+            showEyeBreakDialog()
+        }
     }
 
     override fun onResume() {
@@ -75,12 +90,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showEyeBreakDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.activity_distance, null)
         var remainingSeconds = 20
 
         val builder = AlertDialog.Builder(this)
             .setTitle("👁️ 20-20-20 Eye Break (20s)")
-            .setMessage("Look at an object at least 20 feet (6m) away. Inhale gently and blink softly.\n\nTime remaining: 20s")
+            .setMessage("1. Look away from screen\n2. Focus 20 feet (6m) away\n3. Blink and relax your eyes\n\nTime remaining: 20s")
             .setPositiveButton("Complete Break") { dialog, _ ->
                 Toast.makeText(this, "✓ Eye break recorded! Your vision thanks you.", Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
@@ -98,10 +112,10 @@ class MainActivity : AppCompatActivity() {
         val timer = object : CountDownTimer(20000, 1000) {
             override fun onTick(millisUntilFinished: Long) {
                 remainingSeconds = (millisUntilFinished / 1000).toInt()
-                dialog.setMessage("Look at an object at least 20 feet (6m) away. Inhale gently and blink softly.\n\nTime remaining: ${remainingSeconds}s")
+                dialog.setMessage("1. Look away from screen\n2. Focus 20 feet (6m) away\n3. Blink and relax your eyes\n\nTime remaining: ${remainingSeconds}s")
             }
             override fun onFinish() {
-                dialog.setMessage("Break complete! Great job maintaining healthy screen habits.")
+                dialog.setMessage("✓ Break complete! Your accommodating eye muscles are refreshed.")
             }
         }
         timer.start()
@@ -116,23 +130,6 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 201)
-            }
-        }
-
-        // Onboarding check for Usage Stats
-        if (!UsageTracker.hasUsagePermission(this)) {
-            val prefs = getSharedPreferences("screencare_prefs", Context.MODE_PRIVATE)
-            val asked = prefs.getBoolean("asked_usage", false)
-            if (!asked) {
-                prefs.edit().putBoolean("asked_usage", true).apply()
-                AlertDialog.Builder(this)
-                    .setTitle("Optional: Screen Time Insights")
-                    .setMessage("To automatically estimate your daily screen usage without collecting any personal data or app names, ScreenCare can read device screen time stats.\n\nWould you like to enable this?")
-                    .setPositiveButton("Enable in Settings") { _, _ ->
-                        startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
-                    }
-                    .setNegativeButton("Keep Offline Estimation", null)
-                    .show()
             }
         }
     }

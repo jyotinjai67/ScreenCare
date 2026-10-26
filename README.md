@@ -1,4 +1,4 @@
-# ScreenCare — Secure Cross-Platform Screen Health & Wellness Application
+﻿# ScreenCare — Secure Cross-Platform Screen Health & Wellness Application
 
 **ScreenCare** is an attractive, production-quality, local-first application designed to protect computer and mobile users from digital eye strain (asthenopia), musculoskeletal fatigue, and static posture stiffness.
 
@@ -17,95 +17,38 @@ All compiled release artifacts are organized in `D:\ScreenCare\release\`:
 
 | Deliverable | Platform | File Path | SHA-256 Checksum |
 |:---|:---:|:---|:---|
-| **Windows Installer** | Windows 10/11 | [`release/windows/ScreenCare-Setup.exe`](file:///D:/ScreenCare/release/windows/ScreenCare-Setup.exe) | `C8AEB466459C40EF21F69A2658AF9644108F61A5421F58F4905CDBD019DD7F20` |
-| **Windows Standalone** | Windows 10/11 | [`release/windows/ScreenCare.exe`](file:///D:/ScreenCare/release/windows/ScreenCare.exe) | `918003E02092F6CA6E1D31D9F5DC8D3CFC214F2A2E7BEE3485654AC1B7700703` |
-| **Android Package** | Android 8.0+ | [`release/android/ScreenCare-Android.apk`](file:///D:/ScreenCare/release/android/ScreenCare-Android.apk) | `2E38F3AC8256778AE67226BC23F23F32CA3B0666321E78F90D5C34917A2E8CAE` |
+| **Windows Installer** | Windows 10/11 | [`release/windows/ScreenCare-Setup.exe`](file:///D:/ScreenCare/release/windows/ScreenCare-Setup.exe) | `0D5763B9E3C5CD6C4FE6962E8EC19F22F16C3AF7F34817E2C8ADCE79A3A83039` |
+| **Windows Standalone** | Windows 10/11 | [`release/windows/ScreenCare.exe`](file:///D:/ScreenCare/release/windows/ScreenCare.exe) | `8666ECF186248506B772A2229E502D4310F4246A2FF71137C9E204E61391BB49` |
+| **Android Package** | Android 8.0+ | [`release/android/ScreenCare-Android.apk`](file:///D:/ScreenCare/release/android/ScreenCare-Android.apk) | `824F65B0BE5DE4593B911D0CAE5D9001AE7B52B6F7D96E4CFFB9B68DA5A2A492` |
 
 *Cryptographic checksums are recorded in [`release/CHECKSUMS.sha256`](file:///D:/ScreenCare/release/CHECKSUMS.sha256).*
 
 ---
 
-## 2. Project Directory Structure
+## 2. Notification Architecture & Deduplication
 
-```text
-D:\ScreenCare\
-├── apps\
-│   ├── desktop\            # Electron + React + TypeScript desktop app
-│   │   ├── src\main\       # Hardened Electron Main process (tray, idle monitor, IPC)
-│   │   ├── src\preload\    # Context-isolated safe bridge
-│   │   └── src\renderer\   # React modern wellness UI & break overlays
-│   └── android\            # Android Native Application (Kotlin + Material 3)
-│       └── app\src\main\   # Activities, BroadcastReceivers, UsageTracker
-├── shared\                 # Unified reminder engine, algorithms, stretch library
-├── assets\                 # App icons, vectors, and branding
-├── tests\                  # Automated test suite (9 unit tests)
-├── security\               # Security audit report (SECURITY_REPORT.md)
-├── documentation\          # Prerequisites and architecture docs
-├── reports\                # Test execution report (TEST_REPORT.md)
-├── scripts\                # Build, test, checksum, and audit scripts
-├── release\
-│   ├── windows\            # ScreenCare-Setup.exe & ScreenCare.exe
-│   └── android\            # ScreenCare-Android.apk
-├── tools\                  # Provisioned local Android SDK 34 & Gradle 8.5
-├── package.json            # Root workspace config
-└── README.md
-```
+ScreenCare implements an authoritative **Cycle State Machine** in the Electron Main process:
+1. **Single Notification per Cycle:** Each reminder cycle has a unique ID (e.g. `eye-break-1719001200000`). Once dispatched, its status atomically transitions to `notified`. Subsequent timer ticks cannot re-dispatch notifications for that cycle.
+2. **Deep Linking to Break Experience:** Clicking the native notification restores and focuses the existing window, opening the pictorial break modal without creating secondary windows.
+3. **Sleep/Wake Burst Suppression:** If the device was suspended, overdue reminders are rate-limited and staggered by 5–15 minutes, preventing burst alarms upon wake.
+4. **State Persistence:** Cycle status is persisted in `screencare-data.json` to prevent duplicate popups across application restarts.
 
 ---
 
-## 3. Security & Privacy Guarantees
+## 3. Pictorial & Visual Experience
+
+The user interface features a visual-first design language:
+- **Dedicated Eye Break Experience:** A visual scene featuring a window overlooking distant mountains and horizons, a luminous vector eye illustration, a 20-second circular countdown ring, and 3 illustrated step cards.
+- **Rhythmic Breathing Guide:** Dynamic inhale/hold/exhale animation and progress indicator to calm ocular tension.
+- **Illustrated Dashboard:** Dual health & continuous-session radial rings, large visual wellness tiles, daily screen time progress bar, and an upcoming reminder timeline.
+- **Stretch Library with Vector Guidance:** Illustrated diagrams for neck, shoulder, spine, wrist, and movement breaks.
+
+---
+
+## 4. Security & Privacy Guarantees
 
 ScreenCare enforces strict privacy and system integrity principles:
 1. **Least Privilege Execution:** Runs under standard user rights (`asInvoker`). Never requests administrative elevation or Android root access.
 2. **Zero Telemetry / Zero Cloud Backend:** 100% local-first. Content Security Policy enforces `connect-src 'none'`. No data ever leaves your device.
-3. **Hardened Electron Isolation:** `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, and navigation lockdown.
-4. **No Spyware / No Keylogging:** ScreenCare tracks only duration of user activity and idle periods. It never records keystrokes, window titles, URLs, screen captures, or clipboard contents.
-5. **Private Local Storage:** Data is stored in `%APPDATA%\ScreenCare\screencare-data.json`. Includes a one-click **"Delete All Data"** control in Settings.
-
----
-
-## 4. How to Run the Applications
-
-### Windows
-- **Direct Run (Standalone):** Double-click `D:\ScreenCare\release\windows\ScreenCare.exe`.
-- **Install (Setup Wizard):** Double-click `D:\ScreenCare\release\windows\ScreenCare-Setup.exe` to install to `%LOCALAPPDATA%\Programs\ScreenCare` with Start Menu shortcut and uninstaller.
-- **System Tray:** When minimized or closed, ScreenCare remains active in your Windows system tray. Double-click the tray icon to restore the dashboard, or right-click to trigger breaks or pause reminders.
-
-### Android
-- **Installation via ADB:**
-  ```powershell
-  adb install D:\ScreenCare\release\android\ScreenCare-Android.apk
-  ```
-- **Direct Install:** Transfer `ScreenCare-Android.apk` to your Android device via USB/Storage and tap to install.
-
----
-
-## 5. How to Rebuild the Entire Project
-
-All build scripts are automated and self-contained:
-
-### Rebuild Windows Desktop Application
-```powershell
-powershell -ExecutionPolicy Bypass -File D:\ScreenCare\scripts\build-windows.ps1
-```
-
-### Rebuild Android Application (APK)
-```powershell
-powershell -ExecutionPolicy Bypass -File D:\ScreenCare\scripts\build-android.ps1
-```
-
-### Run Automated Tests
-```powershell
-node D:\ScreenCare\scripts\run-tests.js
-```
-*(All 9 tests execute in ~16ms with 100% pass rate).*
-
-### Run Security Audit
-```powershell
-powershell -ExecutionPolicy Bypass -File D:\ScreenCare\scripts\security-audit.ps1
-```
-
-### Recompute Release Checksums
-```powershell
-powershell -ExecutionPolicy Bypass -File D:\ScreenCare\scripts\generate-checksums.ps1
-```
+3. **Electron Sandboxing:** `contextIsolation: true`, `nodeIntegration: false`, and OS-level sandboxing enabled.
+4. **Clean Android Permissions:** Zero invasive permissions (No SMS, No Contacts, No Location, No Microphone, No Accessibility Service abuse).

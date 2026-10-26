@@ -1,4 +1,4 @@
-package com.screencare.app
+﻿package com.screencare.app
 
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -10,7 +10,7 @@ object NotificationHelper {
 
     fun showEyeBreakNotification(context: Context) {
         val openIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("EXTRA_START_BREAK", "eye-break")
         }
         val openPending = PendingIntent.getActivity(
@@ -33,12 +33,16 @@ object NotificationHelper {
 
         val notification = NotificationCompat.Builder(context, ScreenCareApp.CHANNEL_EYE_CARE)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Eye break time! (20-20-20 Rule)")
-            .setContentText("Look at something approximately 20 feet (6m) away for 20 seconds.")
+            .setContentTitle("Time to rest your eyes 👁️")
+            .setContentText("Look at something in the distance (20 feet) for 20 seconds.")
             .setStyle(NotificationCompat.BigTextStyle().bigText(
-                "You have been using your screen actively. Look away into the distance for 20 seconds to relax your accommodating eye muscles."
+                "You have been using your screen actively.\n\n" +
+                "1. Look away from screen\n" +
+                "2. Focus 20 feet away\n" +
+                "3. Blink and relax your eyes"
             ))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setOnlyAlertOnce(true)
             .setAutoCancel(true)
             .setContentIntent(openPending)
             .addAction(0, "Start Break", openPending)
@@ -51,7 +55,7 @@ object NotificationHelper {
 
     fun showPostureNotification(context: Context) {
         val openIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("EXTRA_START_BREAK", "posture-stretch")
         }
         val openPending = PendingIntent.getActivity(
@@ -63,9 +67,10 @@ object NotificationHelper {
 
         val notification = NotificationCompat.Builder(context, ScreenCareApp.CHANNEL_POSTURE)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Posture & Shoulder Check")
+            .setContentTitle("Posture & Shoulder Check 🧘")
             .setContentText("Relax your shoulders, align your spine, and sit comfortably.")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setOnlyAlertOnce(true)
             .setAutoCancel(true)
             .setContentIntent(openPending)
             .addAction(0, "Start Stretch", openPending)

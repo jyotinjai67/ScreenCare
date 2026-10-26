@@ -1,4 +1,4 @@
-package com.screencare.app
+﻿package com.screencare.app
 
 import android.app.AlarmManager
 import android.app.PendingIntent
@@ -10,15 +10,26 @@ import android.os.Build
 class ReminderReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
+        val prefs = context.getSharedPreferences("screencare_prefs", Context.MODE_PRIVATE)
+
         when (intent.action) {
             ACTION_TRIGGER_REMINDER -> {
                 val type = intent.getStringExtra("EXTRA_TYPE") ?: "eye-break"
-                if (type == "eye-break") {
-                    NotificationHelper.showEyeBreakNotification(context)
-                } else {
-                    NotificationHelper.showPostureNotification(context)
+                val now = System.currentTimeMillis()
+                val lastNotified = prefs.getLong("last_notified_$type", 0L)
+
+                // Atomic deduplication: Ensure minimum 60s gap between identical reminders
+                if (now - lastNotified >= 60_000L) {
+                    prefs.edit().putLong("last_notified_$type", now).apply()
+
+                    if (type == "eye-break") {
+                        NotificationHelper.showEyeBreakNotification(context)
+                    } else {
+                        NotificationHelper.showPostureNotification(context)
+                    }
                 }
-                // Schedule next 20-minute reminder
+
+                // Schedule next 20-minute cycle
                 scheduleNextReminder(context, 20 * 60 * 1000L, "eye-break")
             }
             ACTION_SNOOZE -> {
