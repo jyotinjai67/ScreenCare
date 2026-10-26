@@ -133,6 +133,15 @@ function createMainWindow(): BrowserWindow {
     win.show();
   });
 
+  // Minimize to system tray if enabled
+  win.on('minimize', (event: any) => {
+    if (engine.getSettings().minimizeToTray) {
+      event.preventDefault();
+      win.hide();
+    }
+  });
+
+  // Close hides to system tray unless explicitly quitting
   win.on('close', (event) => {
     if (!isQuitting && engine.getSettings().minimizeToTray) {
       event.preventDefault();
@@ -153,18 +162,9 @@ function showNotificationForEvent(event: ReminderDueEvent): void {
     urgency: 'normal',
   });
 
+  // Notification-only: clicking focuses the existing window without forcing a modal open
   notif.on('click', () => {
     focusMainWindow();
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      // Transition break to in-progress and deep-link directly to break screen
-      engine.startBreak(event.type);
-      mainWindow.webContents.send('screencare:open-break-screen', {
-        type: event.type,
-        cycleId: event.cycleId,
-        exercise: event.exercise,
-      });
-      broadcastState();
-    }
   });
 
   notif.show();
@@ -276,43 +276,39 @@ if (!gotLock) {
       engine.setCycleInfo(initialData.cycles);
     }
 
-    // Single authoritative handler: fires exactly ONCE per reminder cycle
+    // Single authoritative handler: exactly ONE native notification, zero modal popups
     engine.setOnReminderDue((event) => {
       showNotificationForEvent(event);
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('screencare:reminder-triggered', event);
-      }
     });
 
     mainWindow = createMainWindow();
     setupTray();
 
+    // Authoritative single-scheduler background ticker
     timerInterval = setInterval(() => {
       const idleSec = powerMonitor.getSystemIdleTime();
-      // Tick scheduler: engine.tick() handles deduplication and triggers onReminderDue
-      // Do NOT call showNotificationForEvent here to prevent duplicate notifications!
       engine.tick(idleSec, Date.now());
       broadcastState();
     }, 1000);
 
     setInterval(saveStoredData, 60000);
 
+    // Stop counting immediately on lock or sleep; resume only when unlocked and user is active
     powerMonitor.on('lock-screen', () => {
-      engine.pause();
+      engine.setLocked(true);
       broadcastState();
     });
     powerMonitor.on('unlock-screen', () => {
-      engine.resume();
+      engine.setLocked(false, Date.now());
       broadcastState();
     });
     powerMonitor.on('suspend', () => {
-      engine.pause();
+      engine.setSuspended(true);
       saveStoredData();
       broadcastState();
     });
     powerMonitor.on('resume', () => {
-      engine.resume();
-      engine.handleWakeOrResume(Date.now());
+      engine.setSuspended(false, Date.now());
       broadcastState();
     });
 

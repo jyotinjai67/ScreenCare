@@ -25,6 +25,8 @@ export class ReminderEngine {
   private idleSeconds = 0;
   private isIdle = false;
   private isPaused = false;
+  private isLocked = false;
+  private isSuspended = false;
   private pauseUntil = 0;
 
   private cycles: Record<ReminderType, ReminderCycleInfo>;
@@ -45,7 +47,6 @@ export class ReminderEngine {
 
   public updateSettings(newSettings: UserSettings, now = Date.now()): void {
     this.settings = { ...newSettings };
-    // Reschedule any currently 'scheduled' reminders with the new intervals
     const types: ReminderType[] = ['eye-break', 'posture-stretch', 'stand-move', 'walking', 'viewing-distance'];
     for (const t of types) {
       if (this.cycles[t].status === 'scheduled') {
@@ -68,13 +69,39 @@ export class ReminderEngine {
         this.cycles[key as ReminderType] = { ...cycle };
       }
     }
-    // Perform sleep/wake audit on imported cycles
     this.handleWakeOrResume(now);
+  }
+
+  public setLocked(locked: boolean, now = Date.now()): void {
+    this.isLocked = locked;
+    if (!locked) {
+      this.handleWakeOrResume(now);
+    }
+  }
+
+  public setSuspended(suspended: boolean, now = Date.now()): void {
+    this.isSuspended = suspended;
+    if (!suspended) {
+      this.handleWakeOrResume(now);
+    }
+  }
+
+  public isSystemLocked(): boolean {
+    return this.isLocked;
+  }
+
+  public isSystemSuspended(): boolean {
+    return this.isSuspended;
   }
 
   public tick(systemIdleSeconds: number, now = Date.now()): ReminderDueEvent | null {
     const idleThreshold = this.settings.idleThresholdMinutes * 60;
     this.isIdle = systemIdleSeconds >= idleThreshold;
+
+    // Immediately stop screen time counting and reminders when locked or asleep
+    if (this.isLocked || this.isSuspended) {
+      return null;
+    }
 
     if (this.isPaused) {
       if (this.pauseUntil > 0 && now >= this.pauseUntil) {
@@ -84,6 +111,7 @@ export class ReminderEngine {
       }
     }
 
+    // Immediately stop screen time counting when idle
     if (this.isIdle) {
       this.idleSeconds += 1;
       if (systemIdleSeconds >= 600) {
@@ -92,10 +120,11 @@ export class ReminderEngine {
       return null;
     }
 
+    // Computer is unlocked, awake, and user is actively interacting:
     this.activeScreenSeconds += 1;
     this.currentContinuousSeconds += 1;
 
-    // If a break is currently active, decrement its remaining seconds
+    // If an optional break was manually started by the user and is in progress:
     if (this.activeBreak && this.activeBreak.status === 'active') {
       if (this.activeBreak.remainingSeconds > 0) {
         this.activeBreak.remainingSeconds -= 1;
@@ -119,16 +148,14 @@ export class ReminderEngine {
 
       const cycle = this.cycles[type];
 
-      // CRITICAL DEDUPLICATION: Only trigger if status is 'scheduled'
-      // If already 'notified' or 'in-progress', it will NOT trigger again during this cycle
+      // Exact deduplication: trigger ONLY once per cycle
       if (cycle.status === 'scheduled' && now >= cycle.scheduledTime) {
-        // Atomically mark cycle as notified
         cycle.status = 'notified';
         cycle.notifiedAt = now;
 
         const event = this.buildReminderEvent(type, cycle.cycleId, now);
 
-        // Burst suppression: prevent sudden multiple notifications if multiple overdue
+        // Defer any other scheduled reminders by at least 3 minutes to avoid simultaneous bursts
         this.deferOtherReminders(type, now + 180000);
 
         if (this.onReminderDueCallback) {
@@ -201,7 +228,6 @@ export class ReminderEngine {
       this.activeBreak = null;
     }
 
-    // Schedule next legitimate cycle
     this.scheduleNext(type, now);
   }
 
@@ -225,7 +251,6 @@ export class ReminderEngine {
       this.activeBreak = null;
     }
 
-    // Reschedule snooze cycle
     const nextTime = now + snoozeMs;
     this.cycles[type] = {
       cycleId: `${type}-${nextTime}`,
@@ -252,7 +277,6 @@ export class ReminderEngine {
       this.activeBreak = null;
     }
 
-    // Schedule next legitimate cycle
     this.scheduleNext(type, now);
   }
 
@@ -272,7 +296,6 @@ export class ReminderEngine {
   }
 
   public handleWakeOrResume(now = Date.now()): void {
-    // Audit overdue reminders to prevent sudden burst of notifications upon wake/resume
     const overdueTypes: ReminderType[] = [];
     const types: ReminderType[] = ['eye-break', 'posture-stretch', 'stand-move', 'walking'];
 
@@ -284,8 +307,7 @@ export class ReminderEngine {
     }
 
     if (overdueTypes.length > 1) {
-      // Keep only the single most immediate reminder due right now
-      // Defer remaining reminders smoothly
+      // Keep single highest priority overdue reminder due now; space others out
       const [first, ...rest] = overdueTypes;
       this.cycles[first].scheduledTime = now;
 
@@ -406,6 +428,8 @@ export class ReminderEngine {
       idleSeconds: this.idleSeconds,
       isIdle: this.isIdle,
       isPaused: this.isPaused,
+      isLocked: this.isLocked,
+      isSuspended: this.isSuspended,
       pauseUntil: this.pauseUntil,
     };
   }

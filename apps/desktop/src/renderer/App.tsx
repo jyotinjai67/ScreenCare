@@ -83,21 +83,8 @@ export const App: React.FC = () => {
         }
       });
 
-      const unsubRemind = window.screenCareApi.onReminderTriggered((event) => {
-        setLocalActiveBreak((prev: any) => {
-          if (prev && prev.status === 'active') return prev;
-          const ex = event.exercise || getExerciseForReminder(event.type);
-          return {
-            type: event.type,
-            exercise: ex,
-            remainingSeconds: ex.durationSeconds || 20,
-            totalSeconds: ex.durationSeconds || 20,
-            status: 'active',
-            cycleId: event.cycleId,
-          };
-        });
-      });
-
+      // Notification only: reminders do NOT automatically pop open modal dialogs.
+      // Modals only open when user explicitly takes action via tray menu or in-app buttons.
       const unsubOpen = window.screenCareApi.onOpenBreakScreen((data) => {
         const ex = data.exercise || getExerciseForReminder(data.type);
         setLocalActiveBreak({
@@ -112,7 +99,6 @@ export const App: React.FC = () => {
 
       return () => {
         unsubState();
-        unsubRemind();
         unsubOpen();
       };
     }
@@ -240,7 +226,7 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      {/* Break Overlay Screen */}
+      {/* Break Overlay Screen: Only displayed when manually initiated by user */}
       {activeBreakDisplay && activeBreakDisplay.status === 'active' && (
         <BreakModal
           activeBreak={activeBreakDisplay}
