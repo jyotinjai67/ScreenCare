@@ -1,4 +1,4 @@
-﻿import { DailyWellnessSummary, BreakLogEntry } from './types';
+﻿import { BreakLogEntry } from './types';
 
 export interface ScoreBreakdown {
   score: number;
@@ -20,7 +20,6 @@ export function calculateWellnessScore(
     (l) => l.action === 'completed' && (l.type === 'stand-move' || l.type === 'walking' || l.type === 'posture-stretch')
   ).length;
   const skipped = logs.filter((l) => l.action === 'skipped').length;
-  const snoozed = logs.filter((l) => l.action === 'snoozed').length;
 
   const totalOffered = completedEye + completedMove + skipped;
   const adherence = totalOffered > 0 ? (completedEye + completedMove) / totalOffered : 1;

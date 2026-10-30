@@ -5,11 +5,14 @@
   "private": true,
   "scripts": {
     "test": "vitest run --dir tests",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.json && tsc --noEmit -p apps/desktop/tsconfig.electron.json",
+    "verify": "npm test && npm run typecheck",
     "build:desktop": "npm --prefix apps/desktop run build",
     "package:desktop": "npm --prefix apps/desktop run package:win",
     "build:android": "powershell -ExecutionPolicy Bypass -File scripts/build-android.ps1",
     "package:all": "npm run package:desktop && npm run build:android && powershell -ExecutionPolicy Bypass -File scripts/generate-checksums.ps1",
-    "security:audit": "npm audit --audit-level=high && powershell -ExecutionPolicy Bypass -File scripts/security-audit.ps1"
+    "security:audit": "npm audit --audit-level=high && powershell -ExecutionPolicy Bypass -File scripts/security-audit.ps1",
+    "verify:release": "node scripts/verify-release.js"
   },
   "devDependencies": {
     "typescript": "^5.4.5",

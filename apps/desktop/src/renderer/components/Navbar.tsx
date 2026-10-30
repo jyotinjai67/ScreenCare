@@ -1,11 +1,12 @@
-﻿import React from 'react';
+import React from 'react';
 import { AppStateSnapshot } from '@shared/types';
 
 interface NavbarProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   state: AppStateSnapshot | null;
-  onTakeQuickBreak: () => void;
+  onPause: (minutes?: number) => void;
+  onResume: () => void;
   onToggleTheme: () => void;
   theme: string;
   onMinimizeToTray: () => void;
@@ -15,7 +16,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   setCurrentTab,
   state,
-  onTakeQuickBreak,
+  onPause,
+  onResume,
   onToggleTheme,
   theme,
   onMinimizeToTray,
@@ -24,9 +26,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isPaused = state?.isPaused;
 
   return (
-    <nav className="navbar">
+    <header className="navbar">
       <div className="nav-brand">
-        <svg width="28" height="28" viewBox="0 0 256 256" fill="none">
+        <svg width="24" height="24" viewBox="0 0 256 256" fill="none">
           <rect width="256" height="256" rx="56" fill="#0284c7" />
           <path
             d="M128 32 C176 48 208 56 208 104 C208 168 156 208 128 224 C100 208 48 168 48 104 C48 56 80 48 128 32 Z"
@@ -40,78 +42,70 @@ export const Navbar: React.FC<NavbarProps> = ({
           <circle cx="128" cy="128" r="12" fill="#0f172a" />
         </svg>
         <span>ScreenCare</span>
-
-        {isPaused ? (
-          <span className="badge badge-warning" style={{ marginLeft: 8 }}>
-            Paused
-          </span>
-        ) : isIdle ? (
-          <span className="badge badge-info" style={{ marginLeft: 8 }}>
-            Idle
-          </span>
-        ) : (
-          <span className="badge badge-success" style={{ marginLeft: 8 }}>
-            Active Monitoring
-          </span>
-        )}
+        <span className="nav-tagline">• Mindful Screen Rest</span>
       </div>
 
-      <div className="nav-links">
+      {/* Navigation Tabs */}
+      <div className="nav-tabs">
         <button
-          className={`nav-link ${currentTab === 'dashboard' ? 'active' : ''}`}
-          onClick={() => setCurrentTab('dashboard')}
+          className={`nav-tab-btn ${currentTab === 'overview' ? 'active' : ''}`}
+          onClick={() => setCurrentTab('overview')}
         >
-          Dashboard
+          Overview
         </button>
         <button
-          className={`nav-link ${currentTab === 'stretches' ? 'active' : ''}`}
-          onClick={() => setCurrentTab('stretches')}
-        >
-          Exercises & Stretches
-        </button>
-        <button
-          className={`nav-link ${currentTab === 'settings' ? 'active' : ''}`}
+          className={`nav-tab-btn ${currentTab === 'settings' ? 'active' : ''}`}
           onClick={() => setCurrentTab('settings')}
         >
           Settings
         </button>
-        <button
-          className={`nav-link ${currentTab === 'privacy' ? 'active' : ''}`}
-          onClick={() => setCurrentTab('privacy')}
-        >
-          Privacy & Security
-        </button>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button className="btn btn-primary btn-sm" onClick={onTakeQuickBreak}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-          20-20-20 Break
-        </button>
+      {/* Controls & Status */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Status Indicator */}
+        <div className={`status-pill ${isPaused ? 'paused' : isIdle ? 'idle' : 'active'}`}>
+          <span className={`status-dot ${isPaused ? 'paused' : isIdle ? 'idle' : 'active'}`} />
+          <span>{isPaused ? 'Paused' : isIdle ? 'Idle' : 'Active'}</span>
+        </div>
 
+        {/* Quick Pause / Resume Action */}
+        {isPaused ? (
+          <button className="btn btn-primary btn-sm" onClick={onResume} title="Resume reminders immediately">
+            ▶ Resume
+          </button>
+        ) : (
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => onPause(60)}
+            title="Pause reminders for 1 hour"
+          >
+            ⏸ Pause 1h
+          </button>
+        )}
+
+        {/* Theme Toggle */}
         <button
           className="btn btn-secondary btn-sm"
           onClick={onToggleTheme}
-          title="Toggle Theme"
-          style={{ padding: '6px 10px' }}
+          title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
+          style={{ padding: '5px 8px' }}
         >
           {theme === 'dark' ? '☀️' : '🌙'}
         </button>
 
+        {/* Minimize to Tray */}
         <button
           className="btn btn-secondary btn-sm"
           onClick={onMinimizeToTray}
           title="Minimize to System Tray"
-          style={{ padding: '6px 10px' }}
+          style={{ padding: '5px 8px' }}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
         </button>
       </div>
-    </nav>
+    </header>
   );
 };

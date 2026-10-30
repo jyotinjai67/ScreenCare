@@ -1,9 +1,9 @@
-﻿import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer } from 'electron';
 import { ReminderType, UserSettings, AppStateSnapshot } from '../shared/types';
 
 export const screenCareApi = {
   getState: (): Promise<AppStateSnapshot> => ipcRenderer.invoke('screencare:get-state'),
-  updateSettings: (settings: UserSettings): Promise<void> =>
+  updateSettings: (settings: UserSettings): Promise<AppStateSnapshot> =>
     ipcRenderer.invoke('screencare:update-settings', settings),
   startBreak: (type: ReminderType) => ipcRenderer.invoke('screencare:start-break', type),
   completeBreak: (type: ReminderType, durationSeconds?: number) =>
@@ -15,7 +15,13 @@ export const screenCareApi = {
   resetAllData: () => ipcRenderer.invoke('screencare:reset-all-data'),
   minimizeToTray: () => ipcRenderer.invoke('screencare:minimize-to-tray'),
   closeWindow: () => ipcRenderer.invoke('screencare:close-window'),
+  stopApplication: () => ipcRenderer.invoke('screencare:stop-application'),
   getDatabasePath: () => ipcRenderer.invoke('screencare:get-database-path'),
+  closeNotification: () => ipcRenderer.invoke('screencare:close-notification'),
+  clickNotification: () => ipcRenderer.invoke('screencare:click-notification'),
+  pauseNotificationTimer: () => ipcRenderer.invoke('screencare:pause-notification-timer'),
+  resumeNotificationTimer: () => ipcRenderer.invoke('screencare:resume-notification-timer'),
+  previewNotification: (type: ReminderType) => ipcRenderer.invoke('screencare:preview-notification', type),
   onStateUpdate: (callback: (state: AppStateSnapshot) => void) => {
     const handler = (_event: any, state: AppStateSnapshot) => callback(state);
     ipcRenderer.on('screencare:state-update', handler);
@@ -28,13 +34,6 @@ export const screenCareApi = {
     ipcRenderer.on('screencare:reminder-triggered', handler);
     return () => {
       ipcRenderer.removeListener('screencare:reminder-triggered', handler);
-    };
-  },
-  onOpenBreakScreen: (callback: (data: any) => void) => {
-    const handler = (_event: any, data: any) => callback(data);
-    ipcRenderer.on('screencare:open-break-screen', handler);
-    return () => {
-      ipcRenderer.removeListener('screencare:open-break-screen', handler);
     };
   },
 };

@@ -17,8 +17,13 @@ dist-test/
 # Windows unpacked packaging cache & large binaries (>50MB)
 release/windows/win-unpacked/
 release/windows/builder-debug.yml
+release/windows/builder-effective-config.yaml
 release/windows/*.blockmap
 release/windows/*.exe
+release/windows/*.zip
+
+# Backups
+backups/
 
 # Android build outputs & machine-specific configs
 apps/android/.gradle/

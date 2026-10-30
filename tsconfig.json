@@ -5,7 +5,17 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
+    "typeRoots": [
+      "./node_modules/@types",
+      "./apps/desktop/node_modules/@types"
+    ]
   },
-  "include": ["shared/**/*", "tests/**/*"]
+  "include": [
+    "shared/**/*",
+    "tests/**/*"
+  ]
 }

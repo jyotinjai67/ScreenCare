@@ -1,4 +1,4 @@
-﻿package com.screencare.app
+package com.screencare.app
 
 import android.app.AlarmManager
 import android.app.PendingIntent
@@ -18,8 +18,8 @@ class ReminderReceiver : BroadcastReceiver() {
                 val now = System.currentTimeMillis()
                 val lastNotified = prefs.getLong("last_notified_$type", 0L)
 
-                // Atomic deduplication: Ensure minimum 60s gap between identical reminders
-                if (now - lastNotified >= 60_000L) {
+                // Atomic deduplication: Ensure minimum 45s gap between identical reminders
+                if (now - lastNotified >= 45_000L) {
                     prefs.edit().putLong("last_notified_$type", now).apply()
 
                     if (type == "eye-break") {
@@ -29,16 +29,22 @@ class ReminderReceiver : BroadcastReceiver() {
                     }
                 }
 
-                // Schedule next 20-minute cycle
-                scheduleNextReminder(context, 20 * 60 * 1000L, "eye-break")
+                // Schedule next cycle independently for this reminder type
+                val defaultMins = if (type == "eye-break") 20 else 45
+                val intervalMins = prefs.getInt("interval_$type", defaultMins)
+                scheduleNextReminder(context, intervalMins * 60 * 1000L, type)
             }
             ACTION_SNOOZE -> {
+                val type = intent.getStringExtra("EXTRA_TYPE") ?: "eye-break"
                 // Snooze 5 minutes
-                scheduleNextReminder(context, 5 * 60 * 1000L, "eye-break")
+                scheduleNextReminder(context, 5 * 60 * 1000L, type)
             }
             Intent.ACTION_BOOT_COMPLETED -> {
-                // Reschedule reminders upon device boot
-                scheduleNextReminder(context, 20 * 60 * 1000L, "eye-break")
+                // Reschedule reminders independently upon device boot
+                val eyeMins = prefs.getInt("interval_eye-break", 20)
+                val postureMins = prefs.getInt("interval_posture-stretch", 45)
+                scheduleNextReminder(context, eyeMins * 60 * 1000L, "eye-break")
+                scheduleNextReminder(context, postureMins * 60 * 1000L, "posture-stretch")
             }
         }
     }
@@ -53,9 +59,16 @@ class ReminderReceiver : BroadcastReceiver() {
                 action = ACTION_TRIGGER_REMINDER
                 putExtra("EXTRA_TYPE", type)
             }
+            val requestCode = when (type) {
+                "eye-break" -> 1001
+                "posture-stretch" -> 1002
+                "stand-move" -> 1003
+                "walking" -> 1004
+                else -> 1005
+            }
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
-                1001,
+                requestCode,
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )

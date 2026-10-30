@@ -7,17 +7,22 @@
   "files": [
     "dist/**/*",
     "dist-electron/**/*",
+    "!dist-electron/apps/**",
     "package.json"
   ],
   "win": {
     "target": [
       {
         "target": "nsis",
-        "arch": ["x64"]
+        "arch": [
+          "x64"
+        ]
       },
       {
         "target": "portable",
-        "arch": ["x64"]
+        "arch": [
+          "x64"
+        ]
       }
     ],
     "requestedExecutionLevel": "asInvoker"
@@ -30,5 +35,6 @@
   },
   "portable": {
     "artifactName": "ScreenCare.exe"
-  }
+  },
+  "publish": null
 }

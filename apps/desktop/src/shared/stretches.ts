@@ -1,4 +1,4 @@
-﻿import { StretchExercise } from './types';
+import { StretchExercise, ReminderType, ExerciseVariation } from './types';
 
 export const STRETCH_CATALOG: StretchExercise[] = [
   {
@@ -132,16 +132,261 @@ export const STRETCH_CATALOG: StretchExercise[] = [
   },
 ];
 
-export function getExerciseForReminder(type: string): StretchExercise {
+/**
+ * Curated library of 2-3 distinct exercise variations per reminder category.
+ * Each variation contains tailored copy, 20-20-20 rule adherence where applicable,
+ * and a distinct illustration key for dedicated animation rendering.
+ */
+export const EXERCISE_VARIATIONS: Record<ReminderType, ExerciseVariation[]> = {
+  'eye-break': [
+    {
+      id: 'eye-window',
+      type: 'eye-break',
+      title: '20-20-20 Window View',
+      categoryLabel: 'Eye Break',
+      firstWord: 'Eye',
+      highlightWord: 'Break',
+      subtitle: 'Look out the window at a distant point (6m / 20ft away) for 20 seconds.',
+      instruction: 'Look at a distant object through a window for 20 seconds.',
+      illustrationKey: 'eye-window',
+      durationSeconds: 20,
+      description: 'Look through a window at an object at least 20 feet (6 meters) away for 20 seconds to relax ciliary eye muscles.',
+    },
+    {
+      id: 'eye-room',
+      type: 'eye-break',
+      title: 'Room Distance Focus',
+      categoryLabel: 'Eye Break',
+      firstWord: 'Room',
+      highlightWord: 'Focus',
+      subtitle: 'Focus your gaze across the room at a wall clock, art, or distant corner.',
+      instruction: 'Focus on a distant object elsewhere in the room for 20 seconds.',
+      illustrationKey: 'eye-room',
+      durationSeconds: 20,
+      description: 'Shift focus smoothly away from close monitors to the farthest corner or wall of the room.',
+    },
+    {
+      id: 'eye-relax',
+      type: 'eye-break',
+      title: 'Soft Gaze & Eye Rest',
+      categoryLabel: 'Eye Break',
+      firstWord: 'Eye',
+      highlightWord: 'Rest',
+      subtitle: 'Look away from the monitor, blink softly, and allow eye muscles to unwind.',
+      instruction: 'Relax the eyes by looking away from the monitor and blinking gently.',
+      illustrationKey: 'eye-relax',
+      durationSeconds: 20,
+      description: 'Release accommodative micro-spasms and lubricate cornea surfaces with slow, natural blinks away from digital light.',
+    },
+  ],
+  'posture-stretch': [
+    {
+      id: 'neck-side-stretch',
+      type: 'posture-stretch',
+      title: 'Gentle Neck Side Stretch',
+      categoryLabel: 'Posture & Neck',
+      firstWord: 'Neck Side',
+      highlightWord: 'Stretch',
+      subtitle: 'Slow, controlled lateral neck stretch to release cervical tension.',
+      instruction: 'Gently tilt your ear toward your shoulder, hold 15s, and switch sides.',
+      illustrationKey: 'neck-tilt',
+      durationSeconds: 45,
+      description: 'Alleviate tech-neck strain and trapezius stiffness with gentle lateral cervical tilts.',
+    },
+    {
+      id: 'shoulder-rolls',
+      type: 'posture-stretch',
+      title: 'Shoulder Rolls & Release',
+      categoryLabel: 'Posture & Neck',
+      firstWord: 'Shoulder',
+      highlightWord: 'Rolls',
+      subtitle: 'Roll shoulders back in wide circular motions to undo desk slouching.',
+      instruction: 'Inhale, lift shoulders up, and roll them backward in smooth circles.',
+      illustrationKey: 'shoulder-roll',
+      durationSeconds: 45,
+      description: 'Reverses forward hunched shoulders, mobilizes scapulae, and opens chest wall.',
+    },
+    {
+      id: 'posture-reset',
+      type: 'posture-stretch',
+      title: 'Seated Posture Reset',
+      categoryLabel: 'Posture & Neck',
+      firstWord: 'Posture',
+      highlightWord: 'Reset',
+      subtitle: 'Sit tall, drop shoulders down, retract chin lightly, and breathe deeply.',
+      instruction: 'Sit tall with feet flat, pull shoulders back, and lengthen your spine.',
+      illustrationKey: 'posture-reset',
+      durationSeconds: 45,
+      description: 'Align the spine into neutral ergonomic posture with relaxed shoulders and diaphragmatic breath.',
+    },
+  ],
+  'stand-move': [
+    {
+      id: 'stand-overhead',
+      type: 'stand-move',
+      title: 'Standing Overhead Stretch',
+      categoryLabel: 'Stand & Stretch',
+      firstWord: 'Stand &',
+      highlightWord: 'Stretch',
+      subtitle: 'Rise from your seat, reach both arms upward, and elongate your spine.',
+      instruction: 'Stand up tall, interlace fingers, and stretch arms overhead.',
+      illustrationKey: 'stand-overhead',
+      durationSeconds: 60,
+      description: 'Decompresses the lumbar spine, elevates ribcage, and counteracts hours of static sitting.',
+    },
+    {
+      id: 'stand-side-stretch',
+      type: 'stand-move',
+      title: 'Gentle Left-Right Side Stretch',
+      categoryLabel: 'Stand & Stretch',
+      firstWord: 'Side Body',
+      highlightWord: 'Stretch',
+      subtitle: 'Stand tall with feet apart, reach one arm overhead, and gently sway to the side.',
+      instruction: 'Reach overhead and gently lean your torso left, then right.',
+      illustrationKey: 'stand-side-stretch',
+      durationSeconds: 60,
+      description: 'Opens lateral rib cage, stretches intercostal muscles, and improves deep breathing capacity.',
+    },
+    {
+      id: 'stand-chest-opener',
+      type: 'stand-move',
+      title: 'Standing Shoulder & Upper-Back Stretch',
+      categoryLabel: 'Stand & Stretch',
+      firstWord: 'Chest & Back',
+      highlightWord: 'Stretch',
+      subtitle: 'Clasp hands behind your back, squeeze shoulder blades, and gently expand chest.',
+      instruction: 'Clasp hands behind back, draw shoulder blades together, and open chest.',
+      illustrationKey: 'stand-chest-opener',
+      durationSeconds: 60,
+      description: 'Stretches anterior pectoralis and strengthens mid-back scapular retractors.',
+    },
+  ],
+  'walking': [
+    {
+      id: 'walk-desk',
+      type: 'walking',
+      title: 'Step Away from Desk',
+      categoryLabel: 'Walking Refresh',
+      firstWord: 'Walking',
+      highlightWord: 'Break',
+      subtitle: 'Step away from your workstation for a 2-minute movement refresh.',
+      instruction: 'Walk away from your desk and take a short walk.',
+      illustrationKey: 'walking-break',
+      durationSeconds: 120,
+      description: 'Break prolonged static posture, stimulate venous return, and refresh concentration.',
+    },
+    {
+      id: 'walk-stroll',
+      type: 'walking',
+      title: 'Short Indoor Stroll',
+      categoryLabel: 'Walking Refresh',
+      firstWord: 'Indoor',
+      highlightWord: 'Stroll',
+      subtitle: 'Take a relaxed stroll around your workspace, hallway, or up a flight of stairs.',
+      instruction: 'Take a short indoor stroll down the hall or around the room.',
+      illustrationKey: 'walk-stroll',
+      durationSeconds: 120,
+      description: 'Boosts cerebral blood flow, loosens hip flexors, and reduces physical fatigue.',
+    },
+    {
+      id: 'walk-distant-gaze',
+      type: 'walking',
+      title: 'Walk & Distant View',
+      categoryLabel: 'Walking Refresh',
+      firstWord: 'Walk &',
+      highlightWord: 'Horizon',
+      subtitle: 'Walk away from digital screens and focus on distant views across the office or outside.',
+      instruction: 'Walk away from the monitor and look at a distant object for 20 seconds.',
+      illustrationKey: 'walk-distant-gaze',
+      durationSeconds: 120,
+      description: 'Combines full-body locomotion with optical divergence and retinal relaxation.',
+    },
+  ],
+  'viewing-distance': [
+    {
+      id: 'viewing-distance-check',
+      type: 'viewing-distance',
+      title: 'Ergonomic Screen Distance',
+      categoryLabel: 'Ergonomics',
+      firstWord: 'Viewing',
+      highlightWord: 'Distance',
+      subtitle: 'Maintain an arm-length distance (50-70 cm) between your eyes and monitor.',
+      instruction: 'Sit back comfortably and maintain arm-length distance from the screen.',
+      illustrationKey: 'viewing-distance',
+      durationSeconds: 15,
+      description: 'Prevents excessive convergence and neck extension while working on digital displays.',
+    },
+  ],
+};
+
+export function getExerciseVariations(type: ReminderType): ExerciseVariation[] {
+  return EXERCISE_VARIATIONS[type] || [];
+}
+
+export function getVariationForReminder(type: ReminderType, index = 0): ExerciseVariation {
+  const vars = getExerciseVariations(type);
+  if (vars.length === 0) {
+    return {
+      id: `${type}-default`,
+      type,
+      title: 'Mindful Break',
+      categoryLabel: 'Wellness',
+      firstWord: 'Mindful',
+      highlightWord: 'Break',
+      subtitle: 'Take a moment to reset and relax.',
+      instruction: 'Take a mindful pause from screen work.',
+      illustrationKey: 'stretch-break',
+      durationSeconds: 30,
+      description: 'Reset mental clarity and relieve physical strain.',
+    };
+  }
+  const safeIndex = Math.abs(index) % vars.length;
+  return vars[safeIndex];
+}
+
+export function getVariationById(id: string): ExerciseVariation | undefined {
+  for (const list of Object.values(EXERCISE_VARIATIONS)) {
+    const match = list.find((v) => v.id === id);
+    if (match) return match;
+  }
+  return undefined;
+}
+
+export function getExerciseForReminder(type: string, variationIndex = 0): StretchExercise {
+  const reminderType = type as ReminderType;
+  const vars = EXERCISE_VARIATIONS[reminderType];
+  if (vars && vars.length > 0) {
+    const safeIndex = Math.abs(variationIndex) % vars.length;
+    const v = vars[safeIndex];
+    return {
+      id: v.id,
+      title: v.title,
+      category:
+        reminderType === 'eye-break'
+          ? 'eye'
+          : reminderType === 'posture-stretch'
+          ? 'posture'
+          : reminderType === 'stand-move'
+          ? 'stretch'
+          : 'movement',
+      targetArea: v.categoryLabel,
+      durationSeconds: v.durationSeconds,
+      description: v.description,
+      steps: [v.instruction],
+      benefits: v.subtitle,
+      illustrationKey: v.illustrationKey,
+    };
+  }
+
   switch (type) {
     case 'eye-break':
-      return STRETCH_CATALOG[0]; // 20-20-20
+      return STRETCH_CATALOG[0];
     case 'posture-stretch':
-      return STRETCH_CATALOG[2]; // Neck relief or shoulder rolls
+      return STRETCH_CATALOG[2];
     case 'stand-move':
-      return STRETCH_CATALOG[6]; // Stand Up reset
+      return STRETCH_CATALOG[6];
     case 'walking':
-      return STRETCH_CATALOG[7]; // Walking break
+      return STRETCH_CATALOG[7];
     case 'viewing-distance':
     default:
       return STRETCH_CATALOG[0];
